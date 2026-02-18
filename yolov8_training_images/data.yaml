@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 2
+names: ['reef', 'robot']
+
+roboflow:
+  workspace: robot-labeling-nftkn
+  project: my-first-project-idrzk
+  version: 2
+  license: Private
+  url: https://app.roboflow.com/robot-labeling-nftkn/my-first-project-idrzk/2
