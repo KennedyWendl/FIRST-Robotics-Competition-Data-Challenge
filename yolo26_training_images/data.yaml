@@ -1,6 +1,5 @@
-train: ../train/images
-val: ../valid/images
-test: ../test/images
+train: /content/FIRST-ROBOTICS-COMPETITION-DATA-CHALLENGE/yolo26_training_images/train/images
+val: /content/FIRST-ROBOTICS-COMPETITION-DATA-CHALLENGE/yolo26_training_images/valid/images
 
 nc: 2
 names: ['reef', 'robot']
