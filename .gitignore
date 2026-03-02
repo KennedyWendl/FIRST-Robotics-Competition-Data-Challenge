@@ -3,3 +3,6 @@ yolo-env/
 
 # output files
 runs/
+
+# extra models
+*.pt
