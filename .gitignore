@@ -6,3 +6,9 @@ runs/
 
 # extra models
 *.pt
+
+# videos
+videos/
+
+# detections
+detections/
