@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 2
+names: ['blue_number', 'red_number']
+
+roboflow:
+  workspace: traes-workspace
+  project: robot-number-grabber
+  version: 2
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/traes-workspace/robot-number-grabber/dataset/2
