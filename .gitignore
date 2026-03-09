@@ -8,6 +8,4 @@ myenv/
 video_files/
 *.csv
 */videos/
-
-# extra models
-*.pt
+*.mp4
