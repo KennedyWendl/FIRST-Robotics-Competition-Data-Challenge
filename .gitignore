@@ -6,3 +6,12 @@ runs/
 
 # extra models
 *.pt
+
+# Saved images 
+training_frames/
+
+# Saved videos 
+/data_source/videos/ 
+
+# Tracking Output
+tracking_output/ 
