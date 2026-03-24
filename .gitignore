@@ -1,8 +1,12 @@
 # environments
 yolo-env/
+myenv/
+.venv/
 
 # output files
-runs/
+**/runs/
+video_files/
+*.csv
 
 # extra models
 *.pt
