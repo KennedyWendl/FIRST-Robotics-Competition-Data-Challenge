@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 4
+names: ['blue_score', 'red_score', 'team_number', 'timer']
+
+roboflow:
+  workspace: dscapstonescoreboard
+  project: extract-scoreboard-info
+  version: 10
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/dscapstonescoreboard/extract-scoreboard-info/dataset/10
