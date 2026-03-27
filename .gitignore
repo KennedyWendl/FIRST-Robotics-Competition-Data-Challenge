@@ -10,3 +10,9 @@ video_files/
 
 # extra models
 *.pt
+
+# videos
+videos/
+
+# detections
+detections/
