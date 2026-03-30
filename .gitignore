@@ -18,3 +18,6 @@ tracking_output/
 
 # Robot training images 
 robot_numbers/robot_number_grabber/
+
+# Training images for scoreboard 
+train_models/
