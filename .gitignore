@@ -10,3 +10,4 @@ video_files/
 
 # extra models
 *.pt
+!models/*.pt
