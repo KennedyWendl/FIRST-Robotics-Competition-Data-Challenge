@@ -1,8 +1,8 @@
 
-Robot Number Grabber - v2 2026-03-02 2:40pm
+Robot Number Grabber - v4 2026-04-02 1:08pm
 ==============================
 
-This dataset was exported via roboflow.com on March 2, 2026 at 8:40 PM GMT
+This dataset was exported via roboflow.com on April 2, 2026 at 6:08 PM GMT
 
 Roboflow is an end-to-end computer vision platform that helps you
 * collaborate with your team on computer vision projects
@@ -17,7 +17,7 @@ visit https://github.com/roboflow/notebooks
 
 To find over 100k other datasets and pre-trained models, visit https://universe.roboflow.com
 
-The dataset includes 90 images.
+The dataset includes 169 images.
 Numbers are annotated in YOLOv8 format.
 
 The following pre-processing was applied to each image:
