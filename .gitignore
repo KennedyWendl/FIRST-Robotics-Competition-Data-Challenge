@@ -9,3 +9,15 @@ video_files/
 *.csv
 */videos/
 *.mp4
+
+# extra models
+*.pt
+
+# videos
+videos/
+
+# detections
+detections/
+
+# Don't remove scoreboard models within the models directory
+!models/*.pt
