@@ -7,6 +7,8 @@ myenv/
 **/runs/
 video_files/
 *.csv
+*/videos/
+*.mp4
 
 # extra models
 *.pt
