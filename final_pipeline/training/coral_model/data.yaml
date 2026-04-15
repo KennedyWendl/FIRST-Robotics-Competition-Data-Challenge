@@ -1,0 +1,11 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 3
+names: ['coral', 'reef', 'robot']
+
+mosaic: 1.0
+mixup: 0.2
+blur: 0.1
+degrees: 10.0
