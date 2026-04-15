@@ -10,9 +10,6 @@ video_files/
 */videos/
 *.mp4
 
-# extra models
-*.pt
-
 # videos
 videos/
 
