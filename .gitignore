@@ -15,6 +15,3 @@ videos/
 
 # detections
 detections/
-
-# Don't remove scoreboard models within the models directory
-!models/*.pt
