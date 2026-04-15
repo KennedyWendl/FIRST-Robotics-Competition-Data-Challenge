@@ -1,3 +1,14 @@
+# The user will click 8 points, 4 on the left reef and then 4 on the right reef. They will click the 4 corners of the reef that are touching the flat field
+# From a top-down view you'd click as follows:
+#
+#    LEFT REEF         RIGHT REEF   
+#
+#  1             4    5             8
+#   \           /      \           / 
+#    \         /        \         /
+#     2-------3          6-------7
+#
+
 import cv2
 import numpy as np
 import os
