@@ -7,15 +7,7 @@ myenv/
 **/runs/
 video_files/
 *.csv
-
-# extra models
-*.pt
-
-# videos
-videos/
+*.mp4
 
 # detections
 detections/
-
-# Don't remove scoreboard models within the models directory
-!models/*.pt
