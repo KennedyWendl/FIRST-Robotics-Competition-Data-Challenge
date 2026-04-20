@@ -1374,10 +1374,13 @@ majority = counts.most_common(3)
 RED_IDS = [majority[0][0], majority[1][0], majority[2][0]]
 
 # RUN
-output_dir = REPO_ROOT / "tracking_output"
-output_dir.mkdir(exist_ok=True)
+scoring_dir = Path("output/scoring")
+scoring_dir.mkdir(parents=True, exist_ok=True)
+output_dir = Path("output/tracking")
+output_dir.mkdir(parents=True, exist_ok=True)
 
-botsort_results = run_full_pipeline( 
+
+botsort_results = run_full_pipeline(
     CROPPED_VIDEO_PATH,
     ROBOT_MODEL_PATH,
     ROBOT_NUMBER_MODEL_PATH,
@@ -1389,10 +1392,14 @@ botsort_results = run_full_pipeline(
     ocr_stride=15
 )
 
+
 tracking_lookup = defaultdict(list)
+
 
 for entry in botsort_results["tracking"]:
     tracking_lookup[entry["frame"]].append(entry)
+
+
 
 
 assigned_df = assign_coral_to_robot(
@@ -1401,9 +1408,13 @@ assigned_df = assign_coral_to_robot(
     botsort_results["final_labels"]
 )
 
+
 print(assigned_df)
 
+
 unknown_events = assigned_df[assigned_df["robot_id"].isna()].copy()
+
+
 
 
 def review_all_events(
@@ -1416,52 +1427,66 @@ def review_all_events(
 ):
     cap = cv2.VideoCapture(video_path)
 
+
     all_robot_options = list(blue_ids) + list(red_ids)
     user_labels = []
 
+
     for idx, row in assigned_df.iterrows():
 
+
         frame_num = int(row["closest_frame"])
+
 
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
         ret, frame = cap.read()
         if not ret:
             continue
 
+
         draw = frame.copy()
 
+
         tracks = tracking_lookup.get(frame_num, [])
+
 
         # Find closest robot (scorer)
         best_tid = None
         best_dist = float("inf")
 
+
         if row["x"] is not None and row["y"] is not None:
             coral_x, coral_y = row["x"], row["y"]
+
 
             for t in tracks:
                 x1, y1, x2, y2 = t["box"]
                 cx = (x1 + x2) / 2
                 cy = (y1 + y2) / 2
 
+
                 # Weighted distance (favor X)
                 dx = abs(cx - coral_x)
                 dy = abs(cy - coral_y)
                 dist = dx * 2.5 + dy * 0.5
 
+
                 if dist < best_dist:
                     best_dist = dist
                     best_tid = t["track_id"]
+
 
         # Draw robots
         for t in tracks:
             x1, y1, x2, y2 = map(int, t["box"])
             tid = t["track_id"]
 
+
             if tid in final_labels:
                 label = final_labels[tid]
             else:
                 label = f"ID {tid}"
+
 
             # Color priority
             if tid == best_tid:
@@ -1471,42 +1496,49 @@ def review_all_events(
             else:
                 color = (0, 0, 255)
 
+
             cv2.rectangle(draw, (x1, y1), (x2, y2), color, 2)
             cv2.putText(draw, str(label), (x1, y1 - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 
+
         # Draw coral
         if row["x"] is not None and row["y"] is not None:
             cx, cy = int(row["x"]), int(row["y"])
+
 
             if pd.isna(row["robot_id"]):
                 coral_color = (255, 0, 0)
             else:
                 coral_color = (0, 255, 0)
 
+
             cv2.circle(draw, (cx, cy), 8, coral_color, -1)
+
 
         draw_rgb = cv2.cvtColor(draw, cv2.COLOR_BGR2RGB)
 
+
         # Show frame
-        plt.figure(figsize=(8, 6))
-        plt.imshow(draw_rgb)
-        plt.title(
-            f"Frame {frame_num} | Current: {row['robot_id']} | Closest: {best_tid}"
+        filename = scoring_dir / (
+            f"event_{idx}_frame_{frame_num}_"
+            f"curr_{row['robot_id']}_closest_{best_tid}.png"
         )
-        plt.axis("off")
-        plt.show()
-        plt.close()
+        cv2.imwrite(str(filename), draw)
+
 
         # User input (if unknown)
         if pd.isna(row["robot_id"]):
+
 
             print("\nSelect robot:")
             for i, rid in enumerate(all_robot_options):
                 print(f"{i+1}: {rid}")
             print("0: Unknown")
 
+
             choice = input("Enter choice: ")
+
 
             if choice == "0":
                 chosen = None
@@ -1516,13 +1548,16 @@ def review_all_events(
                 print("Invalid → keeping Unknown")
                 chosen = None
 
+
             user_labels.append({
                 "index": idx,
                 "robot_id": chosen
             })
 
+
     cap.release()
     return user_labels
+
 
 user_labels = review_all_events(
     CROPPED_VIDEO_PATH,
@@ -1533,9 +1568,11 @@ user_labels = review_all_events(
     RED_IDS
 )
 
+
 for entry in user_labels:
     idx = entry["index"]
     assigned_df.loc[idx, "robot_id"] = entry["robot_id"]
+
 
 scoring_counts = (
     assigned_df
@@ -1545,4 +1582,6 @@ scoring_counts = (
     .reset_index(name="coral_scored")
 )
 
+
 print(scoring_counts)
+
