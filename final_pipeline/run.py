@@ -530,15 +530,15 @@ def crop_and_save_video(input_path, output_path, split_y):
 
 # Single video processing
 input_file = VIDEO_PATH
-output_file = os.path.join(output_folder, f"cropped_{video_file}")
+output_file = os.path.join(output_folder, f"cropped_{video_filename}")
 split_y = find_split_by_edge_detection(input_file)
 if split_y:
     print(f"Detected Split Point at Y-coordinate: {split_y}")
     crop_and_save_video(input_file, output_file, split_y)
 else:
-    print(f"Skipping {filename}: Could not detect split point.")
+    print(f"Could not detect split point.")
 
-CROPPED_VIDEO_PATH = output_path
+CROPPED_VIDEO_PATH = output_file
 
 # Load models
 robot_model = YOLO(ROBOT_MODEL_PATH)
