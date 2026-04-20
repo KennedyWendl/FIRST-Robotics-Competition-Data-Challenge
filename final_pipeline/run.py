@@ -1227,16 +1227,12 @@ print(f"\nProcessing: {video_file}")
 cap = cv2.VideoCapture(CROPPED_VIDEO_PATH)
 print(f"\nProcessing: {video_file}")
 
-cap = cv2.VideoCapture(os.path.join(VIDEO_FOLDER, video_file))
-
 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 fps = cap.get(cv2.CAP_PROP_FPS)
 cutoff_frame = total_frames - int(49*fps)
 
 width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-crop_h = int(height*(2/5))
-start_y = height - crop_h
 
 # Coral: State
 reef_grids = [[0]*NUM_SLOTS for _ in range(NUM_REEFS)]
@@ -1256,7 +1252,7 @@ while cap.isOpened():
     if not ret or frame_idx >= cutoff_frame:
         break
 
-    cropped = frame[start_y:height, 0:width]
+    cropped = frame
     results = coral_model(cropped, conf=MIN_CONF, verbose=False)
 
     boxes = results[0].boxes.xyxy.cpu().numpy() if results[0].boxes else []
