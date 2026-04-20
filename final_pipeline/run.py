@@ -530,6 +530,11 @@ def crop_and_save_video(input_path, output_path, split_y):
 
 # Single video processing
 input_file = VIDEO_PATH
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+    print(f"Created directory: {output_folder}")
+else:
+    print("Directory exists.")
 output_file = os.path.join(output_folder, f"cropped_{video_filename}")
 split_y = find_split_by_edge_detection(input_file)
 if split_y:
