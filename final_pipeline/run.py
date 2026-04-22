@@ -360,51 +360,42 @@ if DELETE_VIDEO == True and os.path.exists(video_path):
 # Convert to dataframe and display
 scoreboard_df = pd.DataFrame(rows)
 
-# Video processing
+# VIDEO PROCESSING
 
 # --- SETTINGS ---
-input_folder = "output/videos"                # Folder containing your .mp4s
-output_folder = "output/cropped_videos"       # Where the new files will go
+input_folder = "output/videos"                # Folder containing your video
+output_folder = "output/cropped_videos"       # Where the new video will go
 
-# method definitions
+# Method definitions
 
-# determines if the frame is part of the match (skipping intro and ending screens)
+# Determines if the frame is part of the match (skipping intro screen).
+# Detects edge density (low edge density = intro screen).
 def is_real_match_frame(frame):
     h, w, _ = frame.shape
-    # 1. Convert to grayscale
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    
-    # 2. Focus on the corners (avoid the big central logo of an intro)
-    # We'll look at the top-left and top-right 20% of the screen
     corner_roi = gray[0:int(h*0.2), 0:int(w*0.2)]
     
-    # 3. Get edge density
     edges = cv2.Canny(corner_roi, 50, 150)
     edge_density = np.sum(edges > 0) / edges.size
     
-    # 4. Debug print (Temporary - use this to find your "magic number")
+    # Debug print, used to adjust edge density threshold
     # print(f"Current Edge Density: {edge_density:.4f}")
     
-    # Increase this number until the intro is ignored
     return edge_density > 0.04
 
-# determines if climb stage has started
+# Determines if climb stage has started through the scoreboard. 
+# If the timer is at 0:20 at the end of the video, climb has started.
 def is_climb_stage(frame):
     climb = False
-    # crop frame to scoreboard
-    crop_results = crop_model(frame, device=DEVICE)[0]
     
-    # Skip if no scoreboard is found
+    crop_results = crop_model(frame, device = DEVICE, verbose = False)[0]
     if len(crop_results.boxes) == 0:
         return False
-
-    # Crop scoreboard from frame
+    
     x1, y1, x2, y2 = map(int, crop_results.boxes.xyxy[0])
     scoreboard = frame[y1:y2, x1:x2]
 
-    # find timer on scoreboard
-    # Find the elements inside the cropped frame (scores, timer, team numbers)
-    info_results = info_model(scoreboard, device=DEVICE)[0]
+    info_results = info_model(scoreboard, device = DEVICE, verbose = False)[0]
     timer = None
     for b in info_results.boxes:
 
@@ -414,11 +405,9 @@ def is_climb_stage(frame):
         x1, y1, x2, y2 = map(int, b.xyxy[0])
         region = scoreboard[y1:y2, x1:x2]
 
-        # Read timer
         if label == "timer":
             timer = read_timer(region)
 
-    # if seconds less than 15, climb has started
     if timer is not None:
         try:
             minutes = int(timer.split(":")[0])
@@ -431,7 +420,8 @@ def is_climb_stage(frame):
     return climb
 
 
-# finds the y-coordinate split of the points of view and returns it
+# Finds the y-coordinate split of the points of view and returns it.
+# Uses Canny Edge Detection to capture dividing lines.
 def find_split_by_edge_detection(video_path):
     cap = cv2.VideoCapture(video_path)
     cap.set(cv2.CAP_PROP_POS_FRAMES, int(cap.get(cv2.CAP_PROP_FRAME_COUNT) // 2))
@@ -443,32 +433,22 @@ def find_split_by_edge_detection(video_path):
     h, w, _ = frame.shape
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     
-    # 1. Focus on the split zone (approx 45% to 70% of height)
     start_y, end_y = int(h * 0.45), int(h * 0.70)
     zone = gray[start_y:end_y, :]
 
-    # 2. Apply Canny Edge Detection
-    # These thresholds (50, 150) catch the sharp line of the divider
+    # Canny Edge Detection
     edges = cv2.Canny(zone, 50, 150)
-
-    # 3. Sum the white pixels across each row (axis=1)
-    # The divider will be the row with the MOST edge pixels
     edge_sums = np.sum(edges, axis=1)
-
-    # 4. Find the PEAK (instead of the valley)
     relative_split_y = np.argmax(edge_sums)
     absolute_split_y = start_y + relative_split_y
-
     
     return int(absolute_split_y)
 
-# crops the video at the input path at the given y-coordinate, 
-# then saves the bottom portion to the output path
+# Crops the video at the input path at the given y-coordinate.
+# Saves the bottom portion to the output path.
 def crop_and_save_video(input_path, output_path, split_y):
-    # Open the source video
     cap = cv2.VideoCapture(input_path)
     
-    # Get original video properties
     fps = cap.get(cv2.CAP_PROP_FPS)
     orig_width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     orig_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -476,29 +456,22 @@ def crop_and_save_video(input_path, output_path, split_y):
     halfway = total_frames // 2
     frame_skip = 30
     
-    # Define the NEW dimensions (Cropping to the left POV)
     new_height = int(orig_height - split_y)
     new_width = orig_width
     
-    # Define the Codec and create VideoWriter object
-    # 'mp4v' is a standard codec for .mp4 files
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
-    # If the output path already exists, delete it
     current = Path(output_path)
     if current.is_file():
         current.unlink()
-        print(f"{current} deleted successfully.")
 
     out = cv2.VideoWriter(output_path, fourcc, fps, (new_width, new_height))
-    
-    print(f"Processing... Exporting to {output_path}")
 
     processing_started = False
     frame_count = 0
     end_processing = False
 
-    # Video processing loop
+    # Video processing loop!
     while cap.isOpened():
         ret, frame = cap.read()
         frame_count += 1
@@ -506,53 +479,36 @@ def crop_and_save_video(input_path, output_path, split_y):
         if not ret:
             break
 
-        # Check if the intro screen has passed and start processing if it has
+        # Start processing if intro screen has passed
         if not processing_started:
             if is_real_match_frame(frame):
-                print("Match started! Now recording.")
                 processing_started = True
             else:
                 continue
         
-        # Check if the climb stage has started and stop processing if it has
-        # Don't check first half of video for runtime purposes
+        # Stop processing if climb stage has started
         if frame_count > halfway and frame_count % frame_skip == 0:
             if is_climb_stage(frame):
-                print("Climb stage started! Ending processing.")
                 end_processing = True
         
         if end_processing:
             break
         
-        # Perform the crop [y_start:y_end, x_start:x_end]
         cropped_frame = frame[split_y:orig_height, 0:new_width]
-        if cropped_frame.shape[1] != new_width or cropped_frame.shape[0] != new_height:
-            print(f"CRITICAL DIMENSION MISMATCH!")
-            print(f"Writer expects: {new_width}x{new_height}")
-            print(f"Actually got: {cropped_frame.shape[1]}x{cropped_frame.shape[0]}")
 
-        # Write the cropped frame to the new file
         out.write(cropped_frame)
         
-    # Release everything when finished
     cap.release()
     out.release()
-    print("Done! Video saved successfully.")
 
 # Single video processing
 input_file = VIDEO_PATH
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
-    print(f"Created directory: {output_folder}")
-else:
-    print("Directory exists.")
 output_file = os.path.join(output_folder, f"cropped_{video_filename}")
 split_y = find_split_by_edge_detection(input_file)
 if split_y:
-    print(f"Detected Split Point at Y-coordinate: {split_y}")
     crop_and_save_video(input_file, output_file, split_y)
-else:
-    print(f"Could not detect split point.")
 
 CROPPED_VIDEO_PATH = output_file
 
