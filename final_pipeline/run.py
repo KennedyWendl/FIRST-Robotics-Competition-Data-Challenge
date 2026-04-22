@@ -176,7 +176,7 @@ while True:
         continue
     
     # Detect the scoreboard region
-    crop_results = crop_model(frame, device=DEVICE)[0]
+    crop_results = crop_model(frame, device=DEVICE, verbose=False)[0]
 
     # Skip if no scoreboard is found
     if len(crop_results.boxes) == 0:
@@ -188,7 +188,7 @@ while True:
     scoreboard = frame[y1:y2, x1:x2]
 
     # Find the elements inside the cropped frame (scores, timer, team numbers)
-    info_results = info_model(scoreboard, device=DEVICE)[0]
+    info_results = info_model(scoreboard, device=DEVICE, verbose=False)[0]
 
     # Initialize variables for this frame
     blue_score = None
@@ -381,7 +381,7 @@ def is_real_match_frame(frame):
 def is_climb_stage(frame):
     climb = False
     # crop frame to scoreboard
-    crop_results = crop_model(frame, device=DEVICE)[0]
+    crop_results = crop_model(frame, device=DEVICE, verbose=False)[0]
     
     # Skip if no scoreboard is found
     if len(crop_results.boxes) == 0:
@@ -393,7 +393,7 @@ def is_climb_stage(frame):
 
     # find timer on scoreboard
     # Find the elements inside the cropped frame (scores, timer, team numbers)
-    info_results = info_model(scoreboard, device=DEVICE)[0]
+    info_results = info_model(scoreboard, device=DEVICE, verbose=False)[0]
     timer = None
     for b in info_results.boxes:
 
@@ -682,12 +682,12 @@ def preprocess_variants(crop):
 
     variants = []
 
-    # 1. Simple
+    # Simple
     for t in [150, 165, 180, 195, 210]:
         _, th = cv2.threshold(gray, t, 255, cv2.THRESH_BINARY)
         variants.append(th)
 
-    # 2. Adaptive
+    # Adaptive
     adaptive = cv2.adaptiveThreshold(
         gray, 255,
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
@@ -696,7 +696,7 @@ def preprocess_variants(crop):
     )
     variants.append(adaptive)
 
-    # 3. Otsu
+    # Otsu
     _, otsu = cv2.threshold(
         gray, 0, 255,
         cv2.THRESH_BINARY + cv2.THRESH_OTSU
@@ -729,7 +729,7 @@ def assign_coral_to_robot(coral_df, tracking_lookup, final_labels):
             assigned_rows.append({**row, "robot_id": None})
             continue
 
-        # 1. Closest frame
+        # Closest frame
         closest_frame = find_closest_frame(coral_frame, available_frames)
 
         tracks = tracking_lookup.get(closest_frame, [])
@@ -738,7 +738,7 @@ def assign_coral_to_robot(coral_df, tracking_lookup, final_labels):
         best_robot = None
         best_track_id = None
 
-        # 2. Closest robot
+        # Closest robot
         for t in tracks:
             x1, y1, x2, y2 = t["box"]
 
@@ -754,7 +754,7 @@ def assign_coral_to_robot(coral_df, tracking_lookup, final_labels):
                 best_dist = dist
                 best_track_id = t["track_id"]
 
-        # 3. Map to number
+        # Map to number
         if best_track_id in final_labels:
             best_robot = final_labels[best_track_id]
         else:
@@ -905,7 +905,7 @@ def read_numbers(tracking_results, blue_team_numbers=[], red_team_numbers=[], st
             current_frame = frame_idx
 
         if frame_idx != current_frame:
-            print(f"Frame {current_frame}: {frame_data}")
+            # print(f"Frame {current_frame}: {frame_data}")
             results.append({
                 "frame": current_frame,
                 "detections": frame_data
@@ -960,7 +960,7 @@ def read_numbers(tracking_results, blue_team_numbers=[], red_team_numbers=[], st
             })
 
     if frame_data:
-        print(f"Frame {current_frame}: {frame_data}")
+        # print(f"Frame {current_frame}: {frame_data}")
         results.append({
             "frame": current_frame,
             "detections": frame_data
@@ -999,7 +999,7 @@ def run_full_pipeline(
         stride=ocr_stride
     )
 
-    # 1: Alliance detection
+    # Alliance detection
     track_alliance_votes = defaultdict(lambda: {"blue": 0, "red": 0})
 
     for frame in output:
@@ -1028,7 +1028,7 @@ def run_full_pipeline(
         else:
             track_alliance[tid] = None
 
-    # 2: Track memory
+    # Track memory
     track_memory = defaultdict(list)
 
     for frame in output:
@@ -1062,7 +1062,7 @@ def run_full_pipeline(
 
             scores = defaultdict(float)
 
-            # RECENCY WEIGHTING
+            # Recency Weighting
             for j, num in enumerate(nums):
                 weight = 0.9 ** (len(nums) - j)
                 scores[num] += weight
@@ -1097,13 +1097,13 @@ def run_full_pipeline(
 
     print("Final track labels:", final_labels)
 
-    # 4: Build lookup
+    # Build lookup
     tracking_lookup = defaultdict(list)
 
     for entry in botsort_results:
         tracking_lookup[entry["frame"]].append(entry)
 
-    # 5: Draw video
+    # Draw video
     print("Drawing Video...")
 
     cap = cv2.VideoCapture(video_path)
@@ -1521,13 +1521,14 @@ def review_all_events(
             f"curr_{row['robot_id']}_closest_{best_tid}.png"
         )
         cv2.imwrite(str(filename), draw)
+        print(f"File Name: {filename}")
 
 
         # User input (if unknown)
         if pd.isna(row["robot_id"]):
 
 
-            print("\nSelect robot:")
+            print("Select robot:")
             for i, rid in enumerate(all_robot_options):
                 print(f"{i+1}: {rid}")
             print("0: Unknown")
@@ -1578,6 +1579,10 @@ scoring_counts = (
     .reset_index(name="coral_scored")
 )
 
+# Save CSV
+output_csv = Path("output") / f"{video_file}_scores.csv"
+scoring_counts.to_csv(output_csv, index=False)
+print(f"Saved to {output_csv}")
 
 print(scoring_counts)
 
