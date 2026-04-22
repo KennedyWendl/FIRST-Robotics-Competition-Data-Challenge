@@ -24,6 +24,7 @@ import math
 from collections import deque
 from pathlib import Path
 import matplotlib.pyplot as plt
+import argparse
 
 
 # --- User Settings --- 
@@ -34,8 +35,18 @@ YOUTUBE_LINK = "https://www.youtube.com/watch?v=NSWVoO4ZDEs"
 # This variable specifies what GPU(s) you use (if available). Can be set to "cpu", 0, [0,1], etc.
 DEVICE = 0  
 
-# Set to True if you want an image of the robot paths. Set to False otherwise. If running on a server, you'll need to set to False since it requires you to select points to perform homography.
-OUTPUT_ROBOT_PATHS = True
+# If script is run with command line argumment --robot_path it will output the robots paths (must be run locally). Otherwise, robot paths are not calculated
+parser = argparse.ArgumentParser(description="output robot paths.")
+
+parser.add_argument(
+    "--robot_path", 
+    action="store_true", 
+    help="Set OUTPUT_ROBOT_PATHS to True"
+)
+
+args = parser.parse_args()
+
+OUTPUT_ROBOT_PATHS = args.robot_path
 
 # Root repository
 REPO_ROOT = Path(__file__).resolve().parent
@@ -139,6 +150,8 @@ def download_video(url, output_dir):
         "outtmpl": os.path.join(output_dir, "%(title)s.%(ext)s"),
         "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
         "merge_output_format": "mp4",
+        "quiet": True,
+        "no_warnings": True
     }
 
     with YoutubeDL(ydl_opts) as ydl:
@@ -176,7 +189,7 @@ while True:
         continue
     
     # Detect the scoreboard region
-    crop_results = crop_model(frame, device=DEVICE, verbose=False)[0]
+    crop_results = crop_model(frame, device=DEVICE, verbose = False)[0]
 
     # Skip if no scoreboard is found
     if len(crop_results.boxes) == 0:
@@ -188,7 +201,7 @@ while True:
     scoreboard = frame[y1:y2, x1:x2]
 
     # Find the elements inside the cropped frame (scores, timer, team numbers)
-    info_results = info_model(scoreboard, device=DEVICE, verbose=False)[0]
+    info_results = info_model(scoreboard, device=DEVICE, verbose = False)[0]
 
     # Initialize variables for this frame
     blue_score = None
@@ -349,51 +362,42 @@ if DELETE_VIDEO == True and os.path.exists(video_path):
 # Convert to dataframe and display
 scoreboard_df = pd.DataFrame(rows)
 
-# Video processing
+# VIDEO PROCESSING
 
 # --- SETTINGS ---
-input_folder = "output/videos"                # Folder containing your .mp4s
-output_folder = "output/cropped_videos"       # Where the new files will go
+input_folder = "output/videos"                # Folder containing your video
+output_folder = "output/cropped_videos"       # Where the new video will go
 
-# method definitions
+# Method definitions
 
-# determines if the frame is part of the match (skipping intro and ending screens)
+# Determines if the frame is part of the match (skipping intro screen).
+# Detects edge density (low edge density = intro screen).
 def is_real_match_frame(frame):
     h, w, _ = frame.shape
-    # 1. Convert to grayscale
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    
-    # 2. Focus on the corners (avoid the big central logo of an intro)
-    # We'll look at the top-left and top-right 20% of the screen
     corner_roi = gray[0:int(h*0.2), 0:int(w*0.2)]
     
-    # 3. Get edge density
     edges = cv2.Canny(corner_roi, 50, 150)
     edge_density = np.sum(edges > 0) / edges.size
     
-    # 4. Debug print (Temporary - use this to find your "magic number")
+    # Debug print, used to adjust edge density threshold
     # print(f"Current Edge Density: {edge_density:.4f}")
     
-    # Increase this number until the intro is ignored
     return edge_density > 0.04
 
-# determines if climb stage has started
+# Determines if climb stage has started through the scoreboard. 
+# If the timer is at 0:20 at the end of the video, climb has started.
 def is_climb_stage(frame):
     climb = False
-    # crop frame to scoreboard
-    crop_results = crop_model(frame, device=DEVICE, verbose=False)[0]
     
-    # Skip if no scoreboard is found
+    crop_results = crop_model(frame, device = DEVICE, verbose = False)[0]
     if len(crop_results.boxes) == 0:
         return False
-
-    # Crop scoreboard from frame
+    
     x1, y1, x2, y2 = map(int, crop_results.boxes.xyxy[0])
     scoreboard = frame[y1:y2, x1:x2]
 
-    # find timer on scoreboard
-    # Find the elements inside the cropped frame (scores, timer, team numbers)
-    info_results = info_model(scoreboard, device=DEVICE, verbose=False)[0]
+    info_results = info_model(scoreboard, device = DEVICE, verbose = False)[0]
     timer = None
     for b in info_results.boxes:
 
@@ -403,11 +407,9 @@ def is_climb_stage(frame):
         x1, y1, x2, y2 = map(int, b.xyxy[0])
         region = scoreboard[y1:y2, x1:x2]
 
-        # Read timer
         if label == "timer":
             timer = read_timer(region)
 
-    # if seconds less than 15, climb has started
     if timer is not None:
         try:
             minutes = int(timer.split(":")[0])
@@ -420,7 +422,8 @@ def is_climb_stage(frame):
     return climb
 
 
-# finds the y-coordinate split of the points of view and returns it
+# Finds the y-coordinate split of the points of view and returns it.
+# Uses Canny Edge Detection to capture dividing lines.
 def find_split_by_edge_detection(video_path):
     cap = cv2.VideoCapture(video_path)
     cap.set(cv2.CAP_PROP_POS_FRAMES, int(cap.get(cv2.CAP_PROP_FRAME_COUNT) // 2))
@@ -432,32 +435,22 @@ def find_split_by_edge_detection(video_path):
     h, w, _ = frame.shape
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     
-    # 1. Focus on the split zone (approx 45% to 70% of height)
     start_y, end_y = int(h * 0.45), int(h * 0.70)
     zone = gray[start_y:end_y, :]
 
-    # 2. Apply Canny Edge Detection
-    # These thresholds (50, 150) catch the sharp line of the divider
+    # Canny Edge Detection
     edges = cv2.Canny(zone, 50, 150)
-
-    # 3. Sum the white pixels across each row (axis=1)
-    # The divider will be the row with the MOST edge pixels
     edge_sums = np.sum(edges, axis=1)
-
-    # 4. Find the PEAK (instead of the valley)
     relative_split_y = np.argmax(edge_sums)
     absolute_split_y = start_y + relative_split_y
-
     
     return int(absolute_split_y)
 
-# crops the video at the input path at the given y-coordinate, 
-# then saves the bottom portion to the output path
+# Crops the video at the input path at the given y-coordinate.
+# Saves the bottom portion to the output path.
 def crop_and_save_video(input_path, output_path, split_y):
-    # Open the source video
     cap = cv2.VideoCapture(input_path)
     
-    # Get original video properties
     fps = cap.get(cv2.CAP_PROP_FPS)
     orig_width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     orig_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -465,29 +458,22 @@ def crop_and_save_video(input_path, output_path, split_y):
     halfway = total_frames // 2
     frame_skip = 30
     
-    # Define the NEW dimensions (Cropping to the left POV)
     new_height = int(orig_height - split_y)
     new_width = orig_width
     
-    # Define the Codec and create VideoWriter object
-    # 'mp4v' is a standard codec for .mp4 files
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
-    # If the output path already exists, delete it
     current = Path(output_path)
     if current.is_file():
         current.unlink()
-        print(f"{current} deleted successfully.")
 
     out = cv2.VideoWriter(output_path, fourcc, fps, (new_width, new_height))
-    
-    print(f"Processing... Exporting to {output_path}")
 
     processing_started = False
     frame_count = 0
     end_processing = False
 
-    # Video processing loop
+    # Video processing loop!
     while cap.isOpened():
         ret, frame = cap.read()
         frame_count += 1
@@ -495,55 +481,311 @@ def crop_and_save_video(input_path, output_path, split_y):
         if not ret:
             break
 
-        # Check if the intro screen has passed and start processing if it has
+        # Start processing if intro screen has passed
         if not processing_started:
             if is_real_match_frame(frame):
-                print("Match started! Now recording.")
                 processing_started = True
             else:
                 continue
         
-        # Check if the climb stage has started and stop processing if it has
-        # Don't check first half of video for runtime purposes
+        # Stop processing if climb stage has started
         if frame_count > halfway and frame_count % frame_skip == 0:
             if is_climb_stage(frame):
-                print("Climb stage started! Ending processing.")
                 end_processing = True
         
         if end_processing:
             break
         
-        # Perform the crop [y_start:y_end, x_start:x_end]
         cropped_frame = frame[split_y:orig_height, 0:new_width]
-        if cropped_frame.shape[1] != new_width or cropped_frame.shape[0] != new_height:
-            print(f"CRITICAL DIMENSION MISMATCH!")
-            print(f"Writer expects: {new_width}x{new_height}")
-            print(f"Actually got: {cropped_frame.shape[1]}x{cropped_frame.shape[0]}")
 
-        # Write the cropped frame to the new file
         out.write(cropped_frame)
         
-    # Release everything when finished
     cap.release()
     out.release()
-    print("Done! Video saved successfully.")
 
 # Single video processing
 input_file = VIDEO_PATH
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
-    print(f"Created directory: {output_folder}")
-else:
-    print("Directory exists.")
 output_file = os.path.join(output_folder, f"cropped_{video_filename}")
 split_y = find_split_by_edge_detection(input_file)
 if split_y:
-    print(f"Detected Split Point at Y-coordinate: {split_y}")
     crop_and_save_video(input_file, output_file, split_y)
-else:
-    print(f"Could not detect split point.")
 
 CROPPED_VIDEO_PATH = output_file
+
+# Homography code
+if OUTPUT_ROBOT_PATHS:
+    # Info taken from scoreboard
+    CALIBRATION_FRAME_ID = scoreboard_df.loc[scoreboard_df['timer'] == '0:00', 'Frame'].iloc[0]
+    RED_LOCATION = scoreboard_df["red_location"].mode()[0]
+    RED_TEAMS_SCOREBOARD = [int(str(team).strip()) for team in scoreboard_df['red_team_numbers'].mode()[0]]
+    BLUE_TEAMS_SCOREBOARD = [int(str(team).strip()) for team in scoreboard_df['blue_team_numbers'].mode()[0]]
+
+    # Returns the color for a given team number.
+    def get_team_color(team_name):
+        colors = {
+            RED_TEAMS_SCOREBOARD[0]: (30, 30, 255),   # Deep Red
+            RED_TEAMS_SCOREBOARD[1]: (80, 80, 255),   # Lighter Red
+            RED_TEAMS_SCOREBOARD[2]: (0, 100, 255),   # Orange
+            BLUE_TEAMS_SCOREBOARD[0]: (255, 30, 30),   # Deep Blue
+            BLUE_TEAMS_SCOREBOARD[1]: (255, 150, 0),   # Cyan
+            BLUE_TEAMS_SCOREBOARD[2]: (255, 0, 150),   # Purple
+        }
+        return colors.get(team_name, (128, 128, 128))
+
+    RED_UI_COLOR = (30, 30, 255)
+    BLUE_UI_COLOR = (255, 100, 30)
+
+    # Define real-world corner coordinates for homography
+    world_corners_local = np.array([
+        [-3.15094, 13.05740], 
+        [-1.57547, 10.32860], 
+        [ 1.57547, 10.32860], 
+        [ 3.15094, 13.05740]  
+    ], dtype=np.float32)
+
+    # Variables for calibration UI interaction
+    clicked_points = []
+    zoom = 1.0
+    min_zoom = 1.0
+    max_zoom = 6.0
+    center_x = 0
+    center_y = 0
+    W_img = 0
+    H_img = 0
+    calibration_frame = None
+    calibration_done = False 
+    map_scale = 15
+    map_width, map_height = 1200, 600
+    trajectories = defaultdict(list)
+    DYNAMIC_ID_TO_TEAM = {}
+    id_votes = defaultdict(lambda: defaultdict(int))
+
+    # Return zoomed view of calibration frame
+    def get_view():
+        global zoom, center_x, center_y, W_img, H_img, calibration_frame
+        win_w = int(W_img / zoom)
+        win_h = int(H_img / zoom)
+        x1 = max(0, min(W_img - win_w, center_x - win_w // 2))
+        y1 = max(0, min(H_img - win_h, center_y - win_h // 2))
+        crop = calibration_frame[y1:y1+win_h, x1:x1+win_w]
+        view = cv2.resize(crop, (W_img, H_img), interpolation=cv2.INTER_LINEAR)
+        return view, x1, y1
+
+    # Mouse callback for selecting calibration points and zooming
+    def mouse(event, x, y, flags, param):
+        global clicked_points, zoom, center_x, center_y, W_img, H_img
+        view, x1, y1 = get_view()
+
+        def to_img(px, py):
+            return (x1 + px / W_img * (W_img / zoom), y1 + py / H_img * (H_img / zoom))
+
+        if event == cv2.EVENT_LBUTTONDOWN:
+            if len(clicked_points) < 8: 
+                ix, iy = to_img(x, y)
+                clicked_points.append([ix, iy])
+                side = "LEFT" if len(clicked_points) <= 4 else "RIGHT"
+                num = len(clicked_points) if len(clicked_points) <= 4 else len(clicked_points) - 4
+                print(f"Recorded {side} reference point {num}: ({ix:.2f}, {iy:.2f})")
+                
+        elif event == cv2.EVENT_RBUTTONDOWN:
+            if clicked_points:
+                print("Removed:", clicked_points.pop())
+        elif event == cv2.EVENT_MOUSEWHEEL:
+            ix, iy = to_img(x, y)
+            if flags > 0:
+                zoom = min(max_zoom, zoom * 1.2)
+            else:
+                zoom = max(min_zoom, zoom / 1.2)
+            center_x, center_y = int(ix), int(iy)
+
+    # Initialize video capture and jump to calibration frame
+    cap = cv2.VideoCapture(CROPPED_VIDEO_PATH)
+    if not cap.isOpened():
+        raise ValueError(f"Error opening video file: {CROPPED_VIDEO_PATH}")
+
+    cap.set(cv2.CAP_PROP_POS_FRAMES, CALIBRATION_FRAME_ID)
+    ret, calibration_frame = cap.read()
+    if not ret:
+        raise ValueError(f"Could not read frame {CALIBRATION_FRAME_ID}.")
+
+    # Extract frame dimensions and initialize view center
+    H_img, W_img = calibration_frame.shape[:2]
+    center_x, center_y = W_img // 2, H_img // 2
+    split_line_x = W_img / 2.0 
+    esc_press_count = 0
+
+    # Setup calibration window and mouse interaction
+    cv2.namedWindow("Calibration Phase", cv2.WINDOW_NORMAL)
+    cv2.setMouseCallback("Calibration Phase", mouse)
+
+    print("\n--- DUAL CAMERA CALIBRATION ---")
+    print("1. Select your 4 reference points on the LEFT field segment.")
+    print("2. Select the SAME 4 reference points on the RIGHT field segment.")
+    print("3. Press [ENTER] when all 8 points have been designated.")
+
+    # Wait for user to select 8 calibration points
+    while not calibration_done:
+        view, x1, y1 = get_view()
+        
+        # Draw center split line
+        split_view_x = int((split_line_x - x1) / (W_img / zoom) * W_img)
+        cv2.line(view, (split_view_x, 0), (split_view_x, H_img), (255, 255, 255), 1, cv2.LINE_AA)
+        
+        # Draw Crosshairs for clicked points
+        for i, (px, py) in enumerate(clicked_points):
+            sx = int((px - x1) / (W_img / zoom) * W_img)
+            sy = int((py - y1) / (H_img / zoom) * H_img)
+            
+            # Color based on left/right side and red_location configuration
+            is_left_side = i < 4
+            if red_location.lower() == 'left':
+                color = RED_UI_COLOR if is_left_side else BLUE_UI_COLOR
+            else:
+                color = BLUE_UI_COLOR if is_left_side else RED_UI_COLOR
+            
+            ch_size = 12 # Crosshair length
+            cv2.line(view, (sx - ch_size, sy), (sx + ch_size, sy), color, 2, cv2.LINE_AA)
+            cv2.line(view, (sx, sy - ch_size), (sx, sy + ch_size), color, 2, cv2.LINE_AA)
+            cv2.circle(view, (sx, sy), 2, (255, 255, 255), -1, cv2.LINE_AA) # Center dot
+            
+            label = str(i + 1) if i < 4 else str(i - 3)
+            cv2.putText(view, label, (sx + 8, sy - 8), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+        
+        # UI Overlay Top Banner
+        ui_height = 90
+        overlay = view.copy()
+        cv2.rectangle(overlay, (0, 0), (W_img, ui_height), (15, 15, 15), -1)
+        cv2.line(overlay, (0, ui_height), (W_img, ui_height), (0, 140, 255), 2, cv2.LINE_AA)
+        cv2.addWeighted(overlay, 0.85, view, 0.15, 0, view)
+
+        # Dynamic UI Text (Using dynamically calculated status colors)
+        if len(clicked_points) < 4:
+            title_text = "PHASE 1: LEFT FIELD CALIBRATION"
+            sub_text = f"Select point {len(clicked_points) + 1} of 4 on the LEFT camera feed."
+            status_color = RED_UI_COLOR if red_location.lower() == 'left' else BLUE_UI_COLOR
+        elif len(clicked_points) < 8:
+            title_text = "PHASE 2: RIGHT FIELD CALIBRATION"
+            sub_text = f"Select point {len(clicked_points) - 3} of 4 on the RIGHT camera feed."
+            status_color = BLUE_UI_COLOR if red_location.lower() == 'left' else RED_UI_COLOR
+        else:
+            title_text = "CALIBRATION COMPLETE"
+            sub_text = "Press [ENTER] on your keyboard to finalize and begin tracking."
+            status_color = (255, 255, 255)
+
+        cv2.putText(view, title_text, (25, 40), cv2.FONT_HERSHEY_DUPLEX, 0.75, status_color, 1, cv2.LINE_AA)
+        cv2.putText(view, sub_text, (25, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1, cv2.LINE_AA)
+
+        cv2.imshow("Calibration Phase", view)
+        
+        # Keyboard listener
+        key = cv2.waitKey(1) & 0xFF
+        if key in [10, 13] and len(clicked_points) == 8: # Enter key
+            calibration_done = True
+        elif key == 27:  # ESC key
+            esc_press_count += 1
+
+            if esc_press_count <= 2:
+                new_frame_id = CALIBRATION_FRAME_ID + 25 * esc_press_count
+                print(f"Switching to calibration frame {new_frame_id}")
+
+                cap.set(cv2.CAP_PROP_POS_FRAMES, new_frame_id)
+                ret, calibration_frame = cap.read()
+
+                if not ret:
+                    print(f"Could not read frame {new_frame_id}. Exiting.")
+                    break
+
+                # Reset calibration state for new frame
+                clicked_points.clear()
+                center_x, center_y = W_img // 2, H_img // 2
+
+            else:
+                print("Calibration cancelled.")
+                break
+
+    cv2.destroyAllWindows()
+
+    if len(clicked_points) != 8:
+        print("Calibration not completed. Skipping homography.")
+        cap.release()
+        cv2.destroyAllWindows()
+    else:
+        pts_left = np.array(clicked_points[:4], dtype=np.float32)
+        pts_right = np.array(clicked_points[4:], dtype=np.float32)
+
+        H_left, _ = cv2.findHomography(pts_left, world_corners_local)
+        H_right, _ = cv2.findHomography(pts_right, world_corners_local)
+
+        print("\nLeft and Right Homography matrices computed successfully.\n")
+
+    # Function to draw the field overlay on the top-down map
+    def draw_field_overlay(canvas, scale, width, height):
+        line_color = (255, 255, 255) # White lines for field markings
+        thickness = 2
+
+        # Helper function to convert real-world feet coordinates to pixel coordinates on the canvas
+        def to_px(x_ft, y_ft):
+            px_x = int(x_ft * scale) + (width // 2)
+            px_y = int(y_ft * scale) + (height // 2) 
+            return (px_x, px_y)
+
+        # Define field perimeter points based on the known dimensions and the corner offsets
+        wall_x_right = 0.95 + 27.7297
+        wall_y_max = 18.1037 / 2.0
+        
+        # The corners are located at a 54 degree angle from the vertical, and are 7.0685 ft from the wall
+        dx = 7.0685 * np.sin(np.radians(54))
+        dy = 7.0685 * np.cos(np.radians(54))
+        
+        # Calculate corner coordinates based on wall coordinates and offsets
+        corner_x_right = wall_x_right - dx
+        corner_y_max = wall_y_max + dy
+        
+        # Mirror the right side coordinates to get the left side coordinates
+        wall_x_left = -wall_x_right
+        corner_x_left = -corner_x_right
+
+        # Define the perimeter points in a clockwise order starting from the top-left corner
+        perimeter_pts_ft = [
+            (0, corner_y_max),                 
+            (corner_x_right, corner_y_max),    
+            (wall_x_right, wall_y_max),        
+            (wall_x_right, -wall_y_max),       
+            (corner_x_right, -corner_y_max),   
+            (corner_x_left, -corner_y_max),    
+            (wall_x_left, -wall_y_max),        
+            (wall_x_left, wall_y_max),         
+            (corner_x_left, corner_y_max),     
+        ]
+        
+        # Draw the perimeter
+        perimeter_px = np.array([to_px(x, y) for x, y in perimeter_pts_ft], np.int32)
+        cv2.polylines(canvas, [perimeter_px], isClosed=True, color=line_color, thickness=thickness)
+
+        # Define the dimensions of the reef
+        hex_side = 3.15094154
+        hex_dx = hex_side * (np.sqrt(3) / 2.0)
+        hex_dy = hex_side / 2.0
+        
+        right_hex_center_x = 0.95 + 13.0574
+        left_hex_center_x = -right_hex_center_x
+        
+        # Draw the two hexagonal reefs
+        for cx in [left_hex_center_x, right_hex_center_x]:
+            hex_pts_ft = [
+                (cx, hex_side),             
+                (cx + hex_dx, hex_dy),      
+                (cx + hex_dx, -hex_dy),     
+                (cx, -hex_side),            
+                (cx - hex_dx, -hex_dy),     
+                (cx - hex_dx, hex_dy)       
+            ]
+            hex_px = np.array([to_px(x, y) for x, y in hex_pts_ft], np.int32)
+            cv2.polylines(canvas, [hex_px], isClosed=True, color=line_color, thickness=thickness)
+
+        cv2.line(canvas, to_px(0, corner_y_max), to_px(0, -corner_y_max), (100, 100, 100), 1, cv2.LINE_AA)
 
 # Load models
 robot_model = YOLO(ROBOT_MODEL_PATH)
@@ -951,6 +1193,11 @@ def read_numbers(tracking_results, blue_team_numbers=[], red_team_numbers=[], st
             detected = read_number_from_image(number_crop)
             matched = match_number_single(detected, team_list)
 
+            # homography
+            if OUTPUT_ROBOT_PATHS:
+                if matched is not None:
+                    id_votes[entry["track_id"]][matched] += 1
+
             frame_data.append({
                 "detected": detected,
                 "matched": matched,
@@ -1125,6 +1372,36 @@ def run_full_pipeline(
             for entry in tracking_lookup[frame_idx]:
                 tid = entry["track_id"]
                 x1, y1, x2, y2 = map(int, entry["box"])
+
+                # homography
+                if OUTPUT_ROBOT_PATHS:
+
+                    if id_votes[tid]:
+                        assigned_team = max(id_votes[tid], key=id_votes[tid].get)
+                        DYNAMIC_ID_TO_TEAM[tid] = assigned_team
+
+                    bc_x = (x1+x2) / 2
+                    bc_y = y2
+                    pts = np.array([[[bc_x, bc_y]]], dtype=np.float32)
+                    if bc_x < split_line_x:
+                        transformed = cv2.perspectiveTransform(pts, H_left)
+                        rx, ry = transformed[0][0]
+                        rot_x, rot_y = -ry, -rx
+                        real_x_ft, real_y_ft = rot_x - 0.95, rot_y
+                    else:
+                        transformed = cv2.perspectiveTransform(pts, H_right)
+                        rx, ry = transformed[0][0]
+                        rot_x, rot_y = ry, rx
+                        real_x_ft, real_y_ft = rot_x + 0.95, rot_y
+                    map_x = int(real_x_ft * map_scale) + (map_width // 2)
+                    map_y = int(real_y_ft * map_scale) + (map_height // 2)
+                    if 0 <= map_x < map_width and 0 <= map_y < map_height:
+                        # if SHOW_VIDEO_FEED:
+                        #     dot_color = get_team_color(display_id) if isinstance(display_id, int) else (0, 255, 255)
+                        #     cv2.circle(top_down_canvas, (map_x, map_y), 10, dot_color, -1)
+                        #     cv2.putText(top_down_canvas, str(display_id), (map_x + 15, map_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                        
+                        trajectories[tid].append((map_x, map_y))
 
                 alliance = track_alliance.get(tid)
 
@@ -1586,3 +1863,75 @@ print(f"Saved to {output_csv}")
 
 print(scoring_counts)
 
+if OUTPUT_ROBOT_PATHS:
+    # Create the final map canvas and draw the field overlay. Then, plot all trajectories with a layered approach to ensure visibility of both mapped and unmapped paths, and add a static legend for team colors.
+    final_map = np.zeros((map_height, map_width, 3), dtype=np.uint8)
+    draw_field_overlay(final_map, map_scale, map_width, map_height)
+
+    mapped_segments = defaultdict(list)
+    unmapped_segments = []
+
+    # Separate trajectories into mapped (with known team) and unmapped (unknown team) for layered visualization. This ensures that all paths are visible, with mapped paths highlighted in their team colors and unmapped paths shown in a neutral color.
+    for track_id, points in trajectories.items():
+        if len(points) < 2: 
+            continue 
+        
+        team = DYNAMIC_ID_TO_TEAM.get(track_id)
+        if team in RED_TEAMS_SCOREBOARD + BLUE_TEAMS_SCOREBOARD:
+            mapped_segments[team].append(points)
+        else:
+            unmapped_segments.append(points)
+
+    overlay = final_map.copy()
+    unmapped_color = (150, 150, 150)
+
+    for points in unmapped_segments:
+        pts_array = np.array(points, np.int32).reshape((-1, 1, 2))
+        cv2.polylines(overlay, [pts_array], isClosed=False, color=unmapped_color, thickness=1, lineType=cv2.LINE_AA)
+
+    cv2.addWeighted(overlay, 0.4, final_map, 0.6, 0, final_map)
+
+    for team, segments in mapped_segments.items():
+        color = get_team_color(team)
+        for points in segments:
+            pts_array = np.array(points, np.int32).reshape((-1, 1, 2))
+            cv2.polylines(final_map, [pts_array], isClosed=False, color=color, thickness=2, lineType=cv2.LINE_AA)
+
+    legend_x = 20
+    legend_y = 30
+
+    for team in RED_TEAMS_SCOREBOARD + BLUE_TEAMS_SCOREBOARD:
+        color = get_team_color(team)
+        cv2.line(final_map, (legend_x, legend_y - 5), (legend_x + 25, legend_y - 5), color, 3)
+        cv2.putText(final_map, f"Team: {team}", (legend_x + 35, legend_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+        
+        legend_y += 30
+        if legend_y > map_height - 30:
+            legend_y = 30
+            legend_x += 140
+
+    top_match_line_y_px = int(-(18.1037 / 2.0 + 7.0685 * np.cos(np.radians(54))) * map_scale) + (map_height // 2)
+    label_y = top_match_line_y_px - 25
+
+    left_label_x = (map_width // 4) - 80 
+    right_label_x = (3 * map_width // 4) - 80
+
+    if red_location.lower() == 'left':
+        cv2.putText(final_map, "RED ALLIANCE", (left_label_x, label_y), cv2.FONT_HERSHEY_DUPLEX, 0.8, RED_UI_COLOR, 2)
+        cv2.putText(final_map, "BLUE ALLIANCE", (right_label_x, label_y), cv2.FONT_HERSHEY_DUPLEX, 0.8, BLUE_UI_COLOR, 2)
+    else:
+        cv2.putText(final_map, "BLUE ALLIANCE", (left_label_x, label_y), cv2.FONT_HERSHEY_DUPLEX, 0.8, BLUE_UI_COLOR, 2)
+        cv2.putText(final_map, "RED ALLIANCE", (right_label_x, label_y), cv2.FONT_HERSHEY_DUPLEX, 0.8, RED_UI_COLOR, 2)
+
+    base_name, ext = os.path.splitext("robot_trajectories_map.png")
+    counter = 1
+    final_output_name = "robot_trajectories_map.png"
+    while os.path.exists(final_output_name):
+        final_output_name = f"{base_name} ({counter}){ext}"
+        counter += 1
+
+    cv2.imshow("Final Trajectories - Press any key to close", final_map)
+    cv2.imwrite(final_output_name, final_map) 
+    cv2.waitKey(0) 
+    cv2.destroyAllWindows()
+    print(f"Final map saved as '{final_output_name}'. Process finished.")
