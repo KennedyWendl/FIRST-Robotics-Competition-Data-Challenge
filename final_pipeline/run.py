@@ -355,11 +355,11 @@ if pending_row is not None:
 
 cap.release()
 
-# Delete video after processing to save space
+# Delete video after processing to save space if desired.
 if DELETE_VIDEO == True and os.path.exists(video_path):
     os.remove(video_path)
 
-# Convert to dataframe and display
+# Convert to dataframe
 scoreboard_df = pd.DataFrame(rows)
 
 # VIDEO PROCESSING
@@ -537,7 +537,7 @@ if OUTPUT_ROBOT_PATHS:
     RED_UI_COLOR = (30, 30, 255)
     BLUE_UI_COLOR = (255, 100, 30)
 
-    # Define real-world corner coordinates for homography
+    # dimensions for the points that are clicked
     world_corners_local = np.array([
         [-3.15094, 13.05740], 
         [-1.57547, 10.32860], 
@@ -625,27 +625,24 @@ if OUTPUT_ROBOT_PATHS:
     print("2. Select the SAME 4 reference points on the RIGHT field segment.")
     print("3. Press [ENTER] when all 8 points have been designated.")
 
-    # Wait for user to select 8 calibration points
+    # Wait for user to select 8 calibration points and setup UI for point selection
     while not calibration_done:
         view, x1, y1 = get_view()
         
-        # Draw center split line
         split_view_x = int((split_line_x - x1) / (W_img / zoom) * W_img)
         cv2.line(view, (split_view_x, 0), (split_view_x, H_img), (255, 255, 255), 1, cv2.LINE_AA)
-        
-        # Draw Crosshairs for clicked points
+
         for i, (px, py) in enumerate(clicked_points):
             sx = int((px - x1) / (W_img / zoom) * W_img)
             sy = int((py - y1) / (H_img / zoom) * H_img)
             
-            # Color based on left/right side and red_location configuration
             is_left_side = i < 4
             if red_location.lower() == 'left':
                 color = RED_UI_COLOR if is_left_side else BLUE_UI_COLOR
             else:
                 color = BLUE_UI_COLOR if is_left_side else RED_UI_COLOR
             
-            ch_size = 12 # Crosshair length
+            ch_size = 12
             cv2.line(view, (sx - ch_size, sy), (sx + ch_size, sy), color, 2, cv2.LINE_AA)
             cv2.line(view, (sx, sy - ch_size), (sx, sy + ch_size), color, 2, cv2.LINE_AA)
             cv2.circle(view, (sx, sy), 2, (255, 255, 255), -1, cv2.LINE_AA) # Center dot
@@ -653,14 +650,12 @@ if OUTPUT_ROBOT_PATHS:
             label = str(i + 1) if i < 4 else str(i - 3)
             cv2.putText(view, label, (sx + 8, sy - 8), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
         
-        # UI Overlay Top Banner
         ui_height = 90
         overlay = view.copy()
         cv2.rectangle(overlay, (0, 0), (W_img, ui_height), (15, 15, 15), -1)
         cv2.line(overlay, (0, ui_height), (W_img, ui_height), (0, 140, 255), 2, cv2.LINE_AA)
         cv2.addWeighted(overlay, 0.85, view, 0.15, 0, view)
 
-        # Dynamic UI Text (Using dynamically calculated status colors)
         if len(clicked_points) < 4:
             title_text = "PHASE 1: LEFT FIELD CALIBRATION"
             sub_text = f"Select point {len(clicked_points) + 1} of 4 on the LEFT camera feed."
@@ -681,9 +676,9 @@ if OUTPUT_ROBOT_PATHS:
         
         # Keyboard listener
         key = cv2.waitKey(1) & 0xFF
-        if key in [10, 13] and len(clicked_points) == 8: # Enter key
+        if key in [10, 13] and len(clicked_points) == 8:
             calibration_done = True
-        elif key == 27:  # ESC key
+        elif key == 27:
             esc_press_count += 1
 
             if esc_press_count <= 2:
@@ -697,7 +692,6 @@ if OUTPUT_ROBOT_PATHS:
                     print(f"Could not read frame {new_frame_id}. Exiting.")
                     break
 
-                # Reset calibration state for new frame
                 clicked_points.clear()
                 center_x, center_y = W_img // 2, H_img // 2
 
@@ -722,7 +716,7 @@ if OUTPUT_ROBOT_PATHS:
 
     # Function to draw the field overlay on the top-down map
     def draw_field_overlay(canvas, scale, width, height):
-        line_color = (255, 255, 255) # White lines for field markings
+        line_color = (255, 255, 255) 
         thickness = 2
 
         # Helper function to convert real-world feet coordinates to pixel coordinates on the canvas
@@ -731,23 +725,18 @@ if OUTPUT_ROBOT_PATHS:
             px_y = int(y_ft * scale) + (height // 2) 
             return (px_x, px_y)
 
-        # Define field perimeter points based on the known dimensions and the corner offsets
         wall_x_right = 0.95 + 27.7297
         wall_y_max = 18.1037 / 2.0
         
-        # The corners are located at a 54 degree angle from the vertical, and are 7.0685 ft from the wall
         dx = 7.0685 * np.sin(np.radians(54))
         dy = 7.0685 * np.cos(np.radians(54))
         
-        # Calculate corner coordinates based on wall coordinates and offsets
         corner_x_right = wall_x_right - dx
         corner_y_max = wall_y_max + dy
         
-        # Mirror the right side coordinates to get the left side coordinates
         wall_x_left = -wall_x_right
         corner_x_left = -corner_x_right
-
-        # Define the perimeter points in a clockwise order starting from the top-left corner
+        
         perimeter_pts_ft = [
             (0, corner_y_max),                 
             (corner_x_right, corner_y_max),    
@@ -760,11 +749,9 @@ if OUTPUT_ROBOT_PATHS:
             (corner_x_left, corner_y_max),     
         ]
         
-        # Draw the perimeter
         perimeter_px = np.array([to_px(x, y) for x, y in perimeter_pts_ft], np.int32)
         cv2.polylines(canvas, [perimeter_px], isClosed=True, color=line_color, thickness=thickness)
 
-        # Define the dimensions of the reef
         hex_side = 3.15094154
         hex_dx = hex_side * (np.sqrt(3) / 2.0)
         hex_dy = hex_side / 2.0
@@ -772,7 +759,6 @@ if OUTPUT_ROBOT_PATHS:
         right_hex_center_x = 0.95 + 13.0574
         left_hex_center_x = -right_hex_center_x
         
-        # Draw the two hexagonal reefs
         for cx in [left_hex_center_x, right_hex_center_x]:
             hex_pts_ft = [
                 (cx, hex_side),             
@@ -1396,11 +1382,6 @@ def run_full_pipeline(
                     map_x = int(real_x_ft * map_scale) + (map_width // 2)
                     map_y = int(real_y_ft * map_scale) + (map_height // 2)
                     if 0 <= map_x < map_width and 0 <= map_y < map_height:
-                        # if SHOW_VIDEO_FEED:
-                        #     dot_color = get_team_color(display_id) if isinstance(display_id, int) else (0, 255, 255)
-                        #     cv2.circle(top_down_canvas, (map_x, map_y), 10, dot_color, -1)
-                        #     cv2.putText(top_down_canvas, str(display_id), (map_x + 15, map_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-                        
                         trajectories[tid].append((map_x, map_y))
 
                 alliance = track_alliance.get(tid)
@@ -1863,15 +1844,14 @@ print(f"Saved to {output_csv}")
 
 print(scoring_counts)
 
+# Draw the homography map and place trajectories. Trajectories will be layered so that known team number's trajectories will be placed on top. Also there's a static legend for the 6 known team numbers.
 if OUTPUT_ROBOT_PATHS:
-    # Create the final map canvas and draw the field overlay. Then, plot all trajectories with a layered approach to ensure visibility of both mapped and unmapped paths, and add a static legend for team colors.
     final_map = np.zeros((map_height, map_width, 3), dtype=np.uint8)
     draw_field_overlay(final_map, map_scale, map_width, map_height)
 
     mapped_segments = defaultdict(list)
     unmapped_segments = []
 
-    # Separate trajectories into mapped (with known team) and unmapped (unknown team) for layered visualization. This ensures that all paths are visible, with mapped paths highlighted in their team colors and unmapped paths shown in a neutral color.
     for track_id, points in trajectories.items():
         if len(points) < 2: 
             continue 
