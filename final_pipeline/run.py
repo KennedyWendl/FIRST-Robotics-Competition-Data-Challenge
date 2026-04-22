@@ -189,7 +189,7 @@ while True:
         continue
     
     # Detect the scoreboard region
-    crop_results = crop_model(frame, device=DEVICE, verbose = FALSE)[0]
+    crop_results = crop_model(frame, device=DEVICE, verbose = False)[0]
 
     # Skip if no scoreboard is found
     if len(crop_results.boxes) == 0:
@@ -201,7 +201,7 @@ while True:
     scoreboard = frame[y1:y2, x1:x2]
 
     # Find the elements inside the cropped frame (scores, timer, team numbers)
-    info_results = info_model(scoreboard, device=DEVICE, verbose = FALSE)[0]
+    info_results = info_model(scoreboard, device=DEVICE, verbose = False)[0]
 
     # Initialize variables for this frame
     blue_score = None
