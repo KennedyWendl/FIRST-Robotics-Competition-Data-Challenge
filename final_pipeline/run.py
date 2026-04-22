@@ -24,6 +24,7 @@ import math
 from collections import deque
 from pathlib import Path
 import matplotlib.pyplot as plt
+import argparse
 
 
 # --- User Settings --- 
@@ -34,8 +35,18 @@ YOUTUBE_LINK = "https://www.youtube.com/watch?v=NSWVoO4ZDEs"
 # This variable specifies what GPU(s) you use (if available). Can be set to "cpu", 0, [0,1], etc.
 DEVICE = 0  
 
-# Set to True if you want an image of the robot paths. Set to False otherwise. If running on a server, you'll need to set to False since it requires you to select points to perform homography.
-OUTPUT_ROBOT_PATHS = True
+# If script is run with command line argumment --robot_path it will output the robots paths (must be run locally). Otherwise, robot paths are not calculated
+parser = argparse.ArgumentParser(description="output robot paths.")
+
+parser.add_argument(
+    "--robot_path", 
+    action="store_true", 
+    help="Set OUTPUT_ROBOT_PATHS to True"
+)
+
+args = parser.parse_args()
+
+OUTPUT_ROBOT_PATHS = args.robot_path
 
 # Root repository
 REPO_ROOT = Path(__file__).resolve().parent
