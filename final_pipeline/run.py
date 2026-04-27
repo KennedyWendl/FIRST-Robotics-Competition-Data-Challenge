@@ -1,5 +1,5 @@
 
-# Temporary Outline for how the code will flow
+# Code outline
 # 
 # 1. YT Link Provided
 # 2. Download YT Video
@@ -8,7 +8,7 @@
 # 5. If robot path is wanted, have point selection for homography happen
 # 6. Identify Robots
 # 7. Track Robots
-# 8. Output Stuff
+# 8. Output
 
 import os
 import re
@@ -30,7 +30,9 @@ import argparse
 # --- User Settings --- 
 
 # The youtube video that will be processed
-YOUTUBE_LINK = "https://www.youtube.com/watch?v=QRaY9kR6D9w" 
+YOUTUBE_LINK = input("Copy Youtube link for video you want processed: ")
+
+print("Downloading video...")
 
 # This variable specifies what GPU(s) you use (if available). Can be set to "cpu", 0, [0,1], etc.
 DEVICE = 0  
@@ -1328,7 +1330,7 @@ def run_full_pipeline(
             if cost_matrix[r, c] < 0:
                 final_labels[all_tracks[r]] = all_ids[c]
 
-    print("Final track labels:", final_labels)
+    # print("Final track labels:", final_labels)
 
     # Build lookup
     tracking_lookup = defaultdict(list)
@@ -1483,7 +1485,6 @@ video_file = os.path.basename(CROPPED_VIDEO_PATH)
 print(f"\nProcessing: {video_file}")
 
 cap = cv2.VideoCapture(CROPPED_VIDEO_PATH)
-print(f"\nProcessing: {video_file}")
 
 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 fps = cap.get(cv2.CAP_PROP_FPS)
@@ -1611,8 +1612,8 @@ for r in range(NUM_REEFS):
 
 coral_df = pd.DataFrame(events)
 
-print("\nEvent DataFrame:")
-print(coral_df)
+# print("\nEvent DataFrame:")
+# print(coral_df)
 
 # Save CSV
 output_csv = Path("output") / f"{video_file}_coral_events.csv"
@@ -1663,7 +1664,7 @@ assigned_df = assign_coral_to_robot(
 )
 
 
-print(assigned_df)
+# print(assigned_df)
 
 
 unknown_events = assigned_df[assigned_df["robot_id"].isna()].copy()
@@ -1844,7 +1845,7 @@ output_csv = Path("output") / f"{video_file}_scores.csv"
 scoring_counts.to_csv(output_csv, index=False)
 print(f"Saved to {output_csv}")
 
-print(scoring_counts)
+# print(scoring_counts)
 
 # Draw the homography map and place trajectories. Trajectories will be layered so that known team number's trajectories will be placed on top. Also there's a static legend for the 6 known team numbers.
 if OUTPUT_ROBOT_PATHS:
