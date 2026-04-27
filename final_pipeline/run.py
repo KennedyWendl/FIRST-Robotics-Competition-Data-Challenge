@@ -30,7 +30,7 @@ import argparse
 # --- User Settings --- 
 
 # The youtube video that will be processed
-YOUTUBE_LINK = "https://www.youtube.com/watch?v=NSWVoO4ZDEs" 
+YOUTUBE_LINK = "https://www.youtube.com/watch?v=QRaY9kR6D9w" 
 
 # This variable specifies what GPU(s) you use (if available). Can be set to "cpu", 0, [0,1], etc.
 DEVICE = 0  
@@ -953,7 +953,7 @@ def assign_coral_to_robot(coral_df, tracking_lookup, final_labels):
         coral_x = row["x"]
         coral_y = row["y"]
 
-        if coral_x is None or coral_y is None:
+        if pd.isna(coral_x) or pd.isna(coral_y):
             assigned_rows.append({**row, "robot_id": None})
             continue
 
@@ -1688,6 +1688,8 @@ def review_all_events(
 
     for idx, row in assigned_df.iterrows():
 
+        if pd.isna(row.get("closest_frame")):
+            continue
 
         frame_num = int(row["closest_frame"])
 
@@ -1757,7 +1759,7 @@ def review_all_events(
 
 
         # Draw coral
-        if row["x"] is not None and row["y"] is not None:
+        if pd.notna(row["x"]) and pd.notna(row["y"]):
             cx, cy = int(row["x"]), int(row["y"])
 
 
