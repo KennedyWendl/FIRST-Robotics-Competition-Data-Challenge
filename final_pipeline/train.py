@@ -1,5 +1,10 @@
 # Imports
 from ultralytics import YOLO
+from pathlib import Path
+import torch 
+import shutil
+import itertools 
+import pandas as pd
 
 # Yolo model used for training the coral, robots, team numbers, and scoreboard! 
 model = YOLO("training/yolov8m.pt")
@@ -56,12 +61,12 @@ def tune_yolov8_for_robots(model_path="yolov8m.pt", data="training/robot_model/d
             best_map = map5095
 
             # Grabs path of 
-            best_weights = Path(results.save_dir) / "models" / "weights" / "best.pt"
+            best_weights = Path(results.save_dir) / "weights" / "best.pt"
             best_model_path = Path("best_tuned_yolov8.pt")
 
             shutil.copy(best_weights, best_model_path)
 
-            print(f"Bst model saved with mAP50-95 value of {best_map:.4f}.")
+            print(f"Best model saved with mAP50-95 value of {best_map:.4f}.")
 
 
     df = pd.DataFrame(results_summary)
@@ -73,13 +78,14 @@ def tune_yolov8_for_robots(model_path="yolov8m.pt", data="training/robot_model/d
 # epoch_list: Forward and backward pass of training data, impacts the model’s ability to find patterns. We kept these values low because a high epoch size can lead to overfitting and without a GPU takes a long time to run!
 # lr_list: Learning rate, impacts how fast the model learns.
 # batch_list: Number of images processed simultaneously. The smaller the batch, the more at risk you are for noise.
-tune_yolov8(
-    epoch_list=[20, 50],           
+tune_yolov8_for_robots(
+    epoch_list=[20, 50],          
     lr_list=[0.01, 0.005, 0.001],
     batch_list=[8, 16]
 )
 
 # Training the model that will crop the scoreboard from the video 
+model = YOLO("training/yolov8m.pt")
 model.train(
     data="training/crop_scoreboard/data.yaml",
     epochs=50,
@@ -92,6 +98,7 @@ model.train(
 )
 
 # Training the model that will find the scoreboard info (blue and red team scores, and time remaining)
+model = YOLO("training/yolov8m.pt") 
 model.train(
     data="training/extract_scoreboard_info/data.yaml",
     epochs=100,
@@ -104,6 +111,7 @@ model.train(
 )
 
 # Training the model to identify team numbers 
+model = YOLO("training/yolov8m.pt")
 model.train(
     data="training/robot_numbers/data.yaml",
     epochs=50,
@@ -114,6 +122,7 @@ model.train(
 )
 
 # Training the model to identify coral 
+model = YOLO("training/yolov8m.pt")
 model.train(
     data="training/coral_model/data.yaml",
     epochs=100,        
