@@ -62,6 +62,14 @@ We combine our previous models to calculate scoring. We focus only on the L4 cor
 decide when a coral has been scored on the L4 section of the reef. When a coral has been scored, we look for the nearest robot to the section that was scored and
 attribute a score to that robot. If we have identified the robot, we can assign a score to it; otherwise, we ask the user to identify which robot it is.
 
+### Top-down View of Robot Paths
+Optionally, you can output a top-down view of the robot paths throughout the match by running 'python run.py--robot_path' in the terminal. If ran with this functionality, it must be ran locally because a GUI will pop up where 8 calibration points need to be selected to accurately map from camera space to top-down view. 4 points must be selected from the bottom corners of each reef. The photo below is an example of where the points must be selected:
+
+<img width="1997" height="1292" alt="2026-05-08 13_00_03-Calibration Phase" src="https://github.com/user-attachments/assets/89831528-d790-417b-9da5-5a724ebb6fd3" />
+
+You can zoom in on the image to more accurately select the points. Additionally, you can right click to remove points if needed. If there's not a good view of the reef corners, you can press Escape to do calibration 25 frames later in the video. You may do this 3 times. To submit your calibration points, press Enter and the rest of the pipeline will run. To exit the calibration phase entirely, you can press Escape until you GUI disappears. When ran with this functionality, the calibration GUI will pop up after the scoreboard model finishes running.
+
+
 ### Video Processing
 Our video processing script takes a video and crops it to a lower view that shows both reefs. This prevents our models from getting confused by people, technology, etc., that are in the top view. After this, the cropped video can be plugged into our models for evaluation as data.
 
