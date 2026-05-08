@@ -44,25 +44,24 @@ After the YouTube link has been entered, the user may be prompted to identify th
 The photo above is an example of a scoring incident image that would be added to the output/scoring/ folder! The name of the photo (EX: event_0_frame_294_curr_nan_closest_10.png) will be given from the terminal. The user must then manually open the photo to identify the robot surrounded by the green frame. The green frame highlights which robot our model believed to score a point, and is what team number (0 - 6) the user should enter into the terminal! This photo may also contain robots surrounded by red and blue frames, but the user should ignore the other robots and only enter the number that corresponds to the team number of the robot highlighted in the green.  
 
 ## Model Training
-This section explains how we created our models that allowed us to get scoring data by robot!
+How we created the models that allowed us to get scoring data from the robot.
 
 ### Roboflow (Training)
-To create training data for our YOLO model, which is used for object identification, we utilized Roboflow. Roboflow is a free-to-use app that allowed us to take frames from competition videos and draw boxes around the reef, robots, and scored coral to classify them as their particular type of object. 
-We also used Roboflow to assist in reading the scoreboard, particularly to retain the time on the clock, red and blue alliance scores, and red and blue alliance robots.
+To create training data for our YOLO model used for object identification, we used Roboflow. Roboflow is a free-to-use website that lets us upload frames from competition videos and draw boxes around the reef, robots, and scored coral to classify them as their respective object types. 
+We also used Roboflow to draw boxes around the sections of the scoreboard we used for our code.
 
 ### YOLO Model (Identification)
-We used our Roboflow robot training frames to train our YOLO robot model, which, after training, is able to take new videos, break them down into frames, and identify the objects in the frames that we classified in the training data. METRICS TO SUMMARIZE HOW WELL IT DID?
-We did the same for our YOLO scoreboard model, which could then extract the items described above from any frame. We combined that with EasyOCR, a text recognition program, so that we could have a CSV that contains an observation for every time the score changed. Each observation includes the red and blue alliance scores, the time on the clock when the score changed, the lists of robots in the red and blue alliances, and the YouTube link of the match. We also added the side of the screen the red score was on, since that aligns with the side the red reef is on, along with a flag that indicates whether the match is in the 'auto' phase or the 'teleop' phase. MORE METRICS TO SUMMARIZE?
+We used our Roboflow robot training frames to train our YOLO robot model, which, after training, is able to take new videos, break them down into frames, and identify the reefs, robots, and coral in the frames that we classified in the training data.
+We did the same for our YOLO scoreboard model, which could then extract the items described above from any frame. We combined that with EasyOCR, a text recognition program, so that we could have a CSV that contains an observation for every time the score changed. Each observation includes the red and blue alliance scores, the time on the clock when the score changed, the lists of robots in the red and blue alliances, and the YouTube link of the match. We also added the side of the screen on which the red score was, since that aligns with the side on which the red reef is, along with a flag that indicates whether the match is in the 'auto' phase or the 'teleop' phase.
 
 ### BoT-SORT Model (Tracking)
-After identification, the next step was training our BoT-SORT model.
+After identification, we use Bot-SORT to track the robots through a match. This allows us to track the robot frame-by-frame in a video. If the robot moves out of frame or behind the reef and the model loses it, the robot will get a new ID. We then try to read the number off the robot bumper at some point during the track. We give them a list of robots to choose from in that match. If we can identify the robot number, we know which robot it is for the entire track.
 
 ### Game Logic Implementation (Scoring)
-Finally, once our Botsort model was trained, we could implement the scoring logic to create the scoring data by robot.
-
-## Processing Pipeline
-This section describes how to use our code on new videos to generate robot-level data!
+We combine our previous models to calculate scoring. We focus only on the L4 coral scored on the reef. We utilize a Markov model with our YOLO identification to
+decide when a coral has been scored on the L4 section of the reef. When a coral has been scored, we look for the nearest robot to the section that was scored and
+attribute a score to that robot. If we have identified the robot, we can assign a score to it; otherwise, we ask the user to identify which robot it is.
 
 ### Video Processing
-Our video processing script takes a video and crops it to the lower view, which includes the views of both of the reefs. This prevents our models from getting confused by people, technology, etc. that are in the top view. After this, the cropped video can be plugged into our models to be evaluated into data.
+Our video processing script takes a video and crops it to a lower view that shows both reefs. This prevents our models from getting confused by people, technology, etc., that are in the top view. After this, the cropped video can be plugged into our models for evaluation as data.
 
