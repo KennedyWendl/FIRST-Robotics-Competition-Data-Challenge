@@ -39,9 +39,9 @@ Once run.py has begun processing, the user will be prompted to enter a YouTube l
 ### 4. Robot Scoring with the Terminal 
 After the YouTube link has been entered, the user may be prompted to identify the robot that most recently scored on the L4 branch. Our program will prompt the user, from the terminal, to enter a number 0 - 6. Each number corresponds to a team number from the robots competing in the match, with 0 indicating an unknown team. Our program asks the user to manually select a robot's team number when it can not identify the robot from the video. 
 
-<img width="610" height="383" alt="image" src="https://github.com/user-attachments/assets/139c5d8e-49b2-41d5-b24d-1dd97ab27cd7" />
+<img width="610" height="383" alt="image" src="https://github.com/user-attachments/assets/139c5d8e-49b2-41d5-b24d-1dd97ab27cd7" /> \ 
 
-The photo above shows an example of what the photo of the scoring incident will be added to the output/scoring/ folder. The name of the photo (EX: event_0_frame_294_curr_nan_closest_10.png) will be given from the terminal. The user must manually open the photo to identify the robot surrounded by the green box. The green box highlights which robot our model believed to score a point, and is what team number (0 - 6) the user should enter into the terminal!
+The photo above is an example of a scoring incident image that would be added to the output/scoring/ folder! The name of the photo (EX: event_0_frame_294_curr_nan_closest_10.png) will be given from the terminal. The user must then manually open the photo to identify the robot surrounded by the green frame. The green frame highlights which robot our model believed to score a point, and is what team number (0 - 6) the user should enter into the terminal! This photo may also contain robots surrounded by red and blue frames, but the user should ignore the other robots and only enter the number that corresponds to the team number of the robot highlighted in the green.  
 
 ## Model Training
 This section explains how we created our models that allowed us to get scoring data by robot!
